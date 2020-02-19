@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="3466783f-6a49-498e-aa2d-2a9939ffddc8" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="batchprocessdemoFlow" doc:id="9dfe6a2f-5f0c-4a96-8d32-dd25579a2ed1" >
+		<http:listener doc:name="Listener" doc:id="337b93f8-914f-461b-96d7-9f3d487a3fdb" config-ref="HTTP_Listener_config" path="/batch">
+			<http:response >
+				<http:body ><![CDATA[Batch job completed!!!]]></http:body>
+			</http:response>
+		</http:listener>
+		<logger level="INFO" doc:name="Log_Payload" doc:id="98171eb5-361f-4453-86bf-c382bc8e1015" message="Log -----&gt; Batch job begins here. The payload is #[payload]"/>
+		<ee:transform doc:name="Transform Message" doc:id="aa7bcb7f-b1e7-4040-a8e8-3ce07e6d9ddb" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload map {
+	id: $.id as Number,
+	name: $.name
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<batch:job jobName="Batch_Job" doc:id="fc9bb770-b09e-45f7-8f43-77e98a69fb26" blockSize="3" maxFailedRecords="2">
+			<batch:process-records >
+				<batch:step name="Batch_Step" doc:id="2cb5f88e-0ec3-47cc-b550-283f1afb305a">
+					<logger level="INFO" doc:name="Log_One-Record" doc:id="d5be805b-eb28-4882-959a-6c9d8e014347" message="Log -----&gt; Batch job completed #[payload]"/>
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="76c028fb-e922-4b42-9caa-cc134d9ccea7" size="3">
+						<logger level="INFO" doc:name="Batch-Step-Post-Processing" doc:id="7b4f8c49-4a3b-4271-bc0b-5d67a831e18f" message="Log -----&gt; Completion of one batch step"/>
+					</batch:aggregator>
+					<choice doc:name="Choice" doc:id="ae7cfe7e-e760-44c2-a548-cfcd171c1ab7" >
+						<when expression="#[payload.id == 2]">
+							<logger level="INFO" doc:name="Logger" doc:id="20742259-f284-423f-8516-4016b381965e" message="Log -----&gt; Error record"/>
+							<raise-error description="Id is invalid. Cannot complete transaction." type="ORDER:INVALID_DATA"/>
+						</when>
+						<otherwise >
+							<logger level="INFO" doc:name="Logger" doc:id="42027caf-79e0-45f8-b6d1-0bd35e7c5c0d" message="Log -----&gt; Success Scenario"/>
+						</otherwise>
+					</choice>
+				</batch:step>
+				<batch:step name="HandlingErrorRecords" doc:id="74b92ff8-84f4-4011-891d-53b8e2771ea3" acceptPolicy="ONLY_FAILURES">
+					<logger level="INFO" doc:name="Logger" doc:id="f1323143-81b8-450d-849b-5f27d7750e2f" message="Log -----&gt; Error record Identified #[payload]"/>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<logger level="INFO" doc:name="Batch-Post-Processing" doc:id="a1f95de3-22b2-4c22-9629-3a5734613bb5" message="Log -----&gt; Entire batch step completed."/>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>
